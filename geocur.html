@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+/>
+<link
+href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap"
+rel="stylesheet"
+/>
+<title>Geo Quiz</title>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
+
+<style>
+
+html,
+body{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#111;
+    font-family:sans-serif;
+}
+
+canvas{
+    display:block;
+}
+
+</style>
+</head>
+<body>
+
+<script>
+
+// ======================================
+// QUIZ CLASS
+// ======================================
+
+class GeoCurrencyQuiz {
+
+    constructor() {
+
+        this.storageKey =
+            "geoCurrencyQuizLevel";
+
+        this.countries = [];
+
+        this.ready = false;
+    }
+
+    async init(){
+
+        if(this.ready) return;
+
+        const res = await fetch(
+`https://restcountries.com/v3.1/all?fields=name,currencies,latlng,unMember`
+        );
+
+        const data = await res.json();
+
+        const allowedExtra = [
+            "Palestine",
+            "Vatican City"
+        ];
+
+        this.countries = data.filter(c => {
+
+            const isUN =
+                c.unMember === true;
+
+            const isExtra =
+                allowedExtra.includes(
+                    c.name.common
+                );
+
+            const hasCurrency =
+                c.currencies &&
+                Object.keys(
+                    c.currencies
+                ).length > 0;
+
+            return (
+                (isUN || isExtra) &&
+                hasCurrency &&
+                c.latlng &&
+                c.latlng.length === 2
+            );
+        });
+
+        this.shuffle(this.countries);
+
+        this.ready = true;
+    }
+
+    // =========================
+    // RANDOM
+    // =========================
+
+    shuffle(arr){
+
+        for(
+            let i = arr.length - 1;
+            i > 0;
+            i--
+        ){
+
+            const j = Math.floor(
+                Math.random() * (i + 1)
+            );
+
+            [arr[i], arr[j]] =
+            [arr[j], arr[i]];
+        }
+
+        return arr;
+    }
+
+    // =========================
+    // LEVEL
+    // =========================
+
+    getLevel(){
+
+        return Number(
+            localStorage.getItem(
+                this.storageKey
+            ) || 0
+        );
+    }
+
+    nextLevel(){
+
+        localStorage.setItem(
+            this.storageKey,
+            this.getLevel() + 1
+        );
+    }
+
+    resetLevel(){
+
+        localStorage.setItem(
+            this.storageKey,
+            0
+        );
+    }
+
+    // =========================
+    // GET CURRENCY NAME
+    // =========================
+
+    getCurrencyName(country){
+
+        const currencies =
+            Object.values(
+                country.currencies
+            );
+
+        return currencies[0]?.name || "Unknown";
+    }
+
+    // =========================
+    // GET QUESTION
+    // =========================
+
+    async getCurrentLevel(){
+
+        await this.init();
+
+        const country =
+            this.countries[
+                this.getLevel() %
+                this.countries.length
+            ];
+
+        const correct =
+            this.getCurrencyName(
+                country
+            );
+
+        // ambil jawaban salah random
+        const wrong = this.countries
+
+            .filter(c => {
+
+                return (
+                    c.name.common !==
+                    country.name.common
+                );
+            })
+
+            .sort(() =>
+                Math.random() - 0.5
+            )
+
+            .slice(0, 4)
+
+            .map(c =>
+                this.getCurrencyName(c)
+            );
+
+        // remove duplicate
+        const uniqueWrong =
+            [...new Set(wrong)]
+
+            .filter(c =>
+                c !== correct
+            );
+
+        const pilihan = [
+            correct,
+            ...uniqueWrong
+        ];
+
+        // jaga kalau duplicate bikin kurang dari 5
+        while(pilihan.length < 5){
+
+            const randomCountry =
+                this.countries[
+                    Math.floor(
+                        Math.random() *
+                        this.countries.length
+                    )
+                ];
+
+            const currency =
+                this.getCurrencyName(
+                    randomCountry
+                );
+
+            if(
+                !pilihan.includes(currency)
+            ){
+                pilihan.push(currency);
+            }
+        }
+
+        this.shuffle(pilihan);
+
+        return {
+
+            soal:
+`Apa mata uang dari ${country.name.common}?`,
+
+            pilihan,
+
+            trueIndex:
+                pilihan.indexOf(correct),
+
+            negara:
+                country.name.common,
+
+            jawabanBenar:
+                correct
+        };
+    }
+}
+
+// ======================================
+// GEO UI
+// ======================================
+class GeoScene extends Phaser.Scene {
+
+    constructor(){
+
+        super("GeoScene");
+
+        this.totalCountries = 195;
+
+        this.isGameFinished = false;
+
+        // =========================
+        // QUIZ
+        // =========================
+
+        this.quiz = new GeoCurrencyQuiz();
+
+        // =========================
+        // STATS
+        // =========================
+
+        this.stats = {
+            answered: 0,
+            correct: 0,
+            wrong: 0
+        };
+
+        // =========================
+        // COLORS
+        // CYAN -> MAGENTA
+        // =========================
+
+        this.colors = {
+
+            bg: 0x06060a,
+
+            panel: 0x2b1f33,
+
+            cyan: 0x6fffe9,
+
+            magenta: 0xff3a4f,
+
+            magentaDark: 0xed0335,
+
+            green: 0x00ff99,
+
+            red: 0xff3864,
+
+            white: "#ffffff"
+        };
+
+        this.isLocked = false;
+    }
+
+    async create(){
+
+        this.width = this.scale.width;
+        this.height = this.scale.height;
+
+        this.cameras.main.setBackgroundColor(
+            this.colors.bg
+        );
+
+        // =========================
+        // BG
+        // =========================
+
+        this.drawBackground();
+
+        // =========================
+        // TITLE
+        // =========================
+
+        this.title = this.add.text(
+            this.width / 2,
+            55,
+            "ORPOS GEO CURRENCY",
+            {
+                fontFamily:"PT Sans",
+                fontSize:"34px",
+                fontStyle:"bold",
+                color:"#ff199f"
+            }
+        )
+        .setOrigin(0.5)
+        .setAlpha(0);
+
+        this.tweens.add({
+            targets:this.title,
+            alpha:1,
+            y:48,
+            duration:700,
+            ease:"Power2"
+        });
+
+        // =========================
+        // STATS PANEL
+        // =========================
+
+        this.statsPanel = this.add.rectangle(
+            this.width / 2,
+            110,
+            this.width - 40,
+            52,
+            this.colors.panel
+        )
+        .setStrokeStyle(
+            2,
+            this.colors.magenta,
+            0.35
+        );
+
+        this.statsGlow = this.add.rectangle(
+            this.width / 2,
+            110,
+            this.width - 40,
+            52
+        )
+        .setStrokeStyle(
+            8,
+            this.colors.magenta,
+            0.06
+        );
+
+        this.statsText = this.add.text(
+            this.width / 2,
+            110,
+            "",
+            {
+                fontFamily:"PT Sans",
+                fontSize:"20px",
+                color:"#ff7ae5"
+            }
+        )
+        .setOrigin(0.5);
+
+        // =========================
+        // QUESTION PANEL
+        // =========================
+
+        this.questionPanel = this.add.rectangle(
+            this.width / 2,
+            210,
+            this.width - 40,
+            120,
+            this.colors.panel
+        )
+        .setStrokeStyle(
+            2,
+            this.colors.cyan,
+            0.35
+        );
+
+        this.questionGlow = this.add.rectangle(
+            this.width / 2,
+            210,
+            this.width - 40,
+            120
+        )
+        .setStrokeStyle(
+            10,
+            this.colors.cyan,
+            0.05
+        );
+
+        this.questionText = this.add.text(
+            this.width / 2,
+            210,
+            "",
+            {
+                fontFamily:"PT Sans",
+                fontSize:"30px",
+                color:"#ffffff",
+                align:"center",
+                wordWrap:{
+                    width:this.width - 100
+                }
+            }
+        )
+        .setOrigin(0.5);
+
+        // =========================
+        // BUTTONS
+        // =========================
+
+        this.buttons = [];
+
+        for(let i = 0; i < 5; i++){
+
+            const y = 340 + i * 92;
+
+            const bg = this.add.rectangle(
+                this.width / 2,
+                y,
+                this.width - 60,
+                72,
+                this.colors.magentaDark
+            )
+            .setStrokeStyle(
+                2,
+                this.colors.magenta,
+                0.45
+            )
+            .setInteractive();
+
+            const glow = this.add.rectangle(
+                this.width / 2,
+                y,
+                this.width - 60,
+                72
+            )
+            .setStrokeStyle(
+                10,
+                this.colors.magenta,
+                0.04
+            );
+
+            const txt = this.add.text(
+                this.width / 2,
+                y,
+                "",
+                {
+                    fontFamily:"PT Sans",
+                    fontSize:"26px",
+                    color:"#ffffff"
+                }
+            )
+            .setOrigin(0.5);
+
+            // hover
+            bg.on("pointerover", () => {
+
+                if(this.isLocked) return;
+
+                bg.setFillStyle(0x4d1c43);
+
+                this.tweens.add({
+                    targets:[bg, glow],
+                    scaleX:1.02,
+                    scaleY:1.02,
+                    duration:100
+                });
+            });
+
+            bg.on("pointerout", () => {
+
+                if(this.isLocked) return;
+
+                bg.setFillStyle(
+                    this.colors.magentaDark
+                );
+
+                this.tweens.add({
+                    targets:[bg, glow],
+                    scaleX:1,
+                    scaleY:1,
+                    duration:100
+                });
+            });
+
+            bg.on("pointerdown", () => {
+                this.selectAnswer(i);
+            });
+
+            this.buttons.push({
+                bg,
+                glow,
+                txt
+            });
+
+            // intro anim
+            bg.setAlpha(0);
+            txt.setAlpha(0);
+
+            this.tweens.add({
+                targets:[bg, txt],
+                alpha:1,
+                y:{
+                    from:y + 18,
+                    to:y
+                },
+                delay:i * 70,
+                duration:400,
+                ease:"Power3"
+            });
+        }
+
+        this.updateStatsUI();
+
+        await this.loadQuestion();
+
+        this.scale.on(
+            "resize",
+            this.resize,
+            this
+        );
+
+        this.cameras.main.fadeIn(500);
+    }
+
+    drawBackground(){
+
+        const g = this.add.graphics();
+
+        // grid cyan
+        g.lineStyle(
+            1,
+            this.colors.cyan,
+            0.04
+        );
+
+        for(let x = 0; x < this.width; x += 40){
+
+            g.moveTo(x, 0);
+            g.lineTo(x, this.height);
+        }
+
+        for(let y = 0; y < this.height; y += 40){
+
+            g.moveTo(0, y);
+            g.lineTo(this.width, y);
+        }
+
+        g.strokePath();
+
+        // magenta scanline
+        g.lineStyle(
+            1,
+            this.colors.magenta,
+            0.03
+        );
+
+        for(let y = 0; y < this.height; y += 4){
+
+            g.moveTo(0, y);
+            g.lineTo(this.width, y);
+        }
+
+        g.strokePath();
+    }
+
+    updateStatsUI(){
+
+        this.statsText.setText(
+`DONE ${this.stats.answered}/195   TRUE ${this.stats.correct}   FALSE ${this.stats.wrong}`
+        );
+
+        this.tweens.add({
+            targets:[
+                this.statsPanel,
+                this.statsGlow
+            ],
+            scaleX:1.02,
+            scaleY:1.02,
+            duration:120,
+            yoyo:true
+        });
+    }
+
+    async loadQuestion(){
+
+        this.isLocked = true;
+
+        const currentLevel =
+            this.quiz.getLevel();
+
+        // =========================
+        // WIN
+        // =========================
+
+        if(currentLevel >= this.totalCountries){
+
+            this.showWinScreen();
+
+            return;
+        }
+
+        // =========================
+        // FADE OUT
+        // =========================
+
+        this.tweens.add({
+            targets:[
+                this.questionText,
+                ...this.buttons.map(b => b.bg),
+                ...this.buttons.map(b => b.txt)
+            ],
+            alpha:0,
+            duration:120
+        });
+
+        await new Promise(r =>
+            setTimeout(r, 150)
+        );
+
+        // =========================
+        // NEW QUESTION
+        // =========================
+
+        this.current =
+            await this.quiz.getCurrentLevel();
+
+        this.questionText.setText(
+            this.current.soal
+        );
+
+        this.questionText.setAlpha(0);
+
+        // =========================
+        // BUTTON RESET
+        // =========================
+
+        this.current.pilihan.forEach((p, i) => {
+
+            const btn = this.buttons[i];
+
+            btn.txt.setText(p);
+
+            btn.bg.setFillStyle(
+                this.colors.magentaDark
+            );
+
+            btn.bg.setStrokeStyle(
+                2,
+                this.colors.magenta,
+                0.45
+            );
+
+            btn.bg.setScale(1);
+
+            btn.bg.x = this.width / 2;
+
+            btn.bg.disableInteractive();
+            btn.bg.setInteractive();
+
+            btn.bg.setAlpha(0);
+            btn.txt.setAlpha(0);
+
+            this.tweens.add({
+                targets:[
+                    btn.bg,
+                    btn.txt
+                ],
+                alpha:1,
+                y:{
+                    from:btn.bg.y + 10,
+                    to:btn.bg.y
+                },
+                duration:250,
+                delay:i * 50,
+                ease:"Power2"
+            });
+        });
+
+        // question anim
+        this.tweens.add({
+            targets:this.questionText,
+            alpha:1,
+            y:{
+                from:this.questionText.y - 10,
+                to:this.questionText.y
+            },
+            duration:240
+        });
+
+        // pulse
+        this.tweens.add({
+            targets:[
+                this.questionPanel,
+                this.questionGlow
+            ],
+            scaleX:1.01,
+            scaleY:1.01,
+            duration:120,
+            yoyo:true
+        });
+
+        await new Promise(r =>
+            setTimeout(r, 320)
+        );
+
+        this.isLocked = false;
+    }
+
+    async selectAnswer(index){
+
+        if(this.isLocked) return;
+
+        this.isLocked = true;
+
+        const correct =
+            index === this.current.trueIndex;
+
+        const selected =
+            this.buttons[index];
+
+        const trueButton =
+            this.buttons[
+                this.current.trueIndex
+            ];
+
+        this.stats.answered++;
+
+        if(correct){
+
+            this.stats.correct++;
+
+            selected.bg.setFillStyle(
+                this.colors.green
+            );
+
+            this.tweens.add({
+                targets:[
+                    selected.bg,
+                    selected.glow
+                ],
+                scaleX:1.05,
+                scaleY:1.05,
+                duration:150,
+                yoyo:true
+            });
+
+            this.quiz.nextLevel();
+
+        }else{
+
+            this.stats.wrong++;
+
+            selected.bg.setFillStyle(
+                this.colors.red
+            );
+
+            trueButton.bg.setFillStyle(
+                this.colors.green
+            );
+
+            // shake
+            this.tweens.add({
+                targets:selected.bg,
+                x:selected.bg.x - 12,
+                duration:40,
+                repeat:5,
+                yoyo:true
+            });
+        }
+
+        this.updateStatsUI();
+
+        await new Promise(r =>
+            setTimeout(r, 1000)
+        );
+
+        await this.loadQuestion();
+    }
+
+    showWinScreen(){
+
+        this.isGameFinished = true;
+
+        this.buttons.forEach(b => {
+
+            b.bg.disableInteractive();
+
+            this.tweens.add({
+                targets:[
+                    b.bg,
+                    b.txt,
+                    b.glow
+                ],
+                alpha:0,
+                duration:500
+            });
+        });
+
+        this.questionPanel.setFillStyle(
+            0x120014
+        );
+
+        this.questionPanel.setStrokeStyle(
+            3,
+            this.colors.magenta,
+            0.7
+        );
+
+        this.questionText.setText(
+
+`ALL CURRENCIES COMPLETED
+
+195 / 195
+
+TRUE ${this.stats.correct}
+FALSE ${this.stats.wrong}`
+        );
+
+        this.questionText.setStyle({
+            fontSize:"34px",
+            color:"#ff7ae5",
+            align:"center"
+        });
+
+        this.tweens.add({
+            targets:[
+                this.questionPanel,
+                this.questionGlow
+            ],
+            scaleX:1.03,
+            scaleY:1.03,
+            duration:900,
+            repeat:-1,
+            yoyo:true
+        });
+
+        this.cameras.main.flash(
+            1000,
+            255,
+            0,
+            180
+        );
+    }
+
+    resize(gameSize){
+
+        const width = gameSize.width;
+        const height = gameSize.height;
+
+        this.width = width;
+        this.height = height;
+
+        this.title.setPosition(
+            width / 2,
+            50
+        );
+
+        // stats
+        this.statsPanel.setPosition(
+            width / 2,
+            110
+        );
+
+        this.statsGlow.setPosition(
+            width / 2,
+            110
+        );
+
+        this.statsPanel.width =
+        this.statsGlow.width =
+            width - 40;
+
+        this.statsText.setPosition(
+            width / 2,
+            110
+        );
+
+        // question
+        this.questionPanel.setPosition(
+            width / 2,
+            210
+        );
+
+        this.questionGlow.setPosition(
+            width / 2,
+            210
+        );
+
+        this.questionPanel.width =
+        this.questionGlow.width =
+            width - 40;
+
+        this.questionText.setPosition(
+            width / 2,
+            210
+        );
+
+        this.questionText.setWordWrapWidth(
+            width - 100
+        );
+
+        // buttons
+        this.buttons.forEach((b, i) => {
+
+            const y = 340 + i * 92;
+
+            b.bg.setPosition(
+                width / 2,
+                y
+            );
+
+            b.glow.setPosition(
+                width / 2,
+                y
+            );
+
+            b.bg.width =
+            b.glow.width =
+                width - 60;
+
+            b.txt.setPosition(
+                width / 2,
+                y
+            );
+        });
+    }
+}
+// ======================================
+// PHASER CONFIG
+// ======================================
+
+const config = {
+
+    type: Phaser.CANVAS,
+
+    backgroundColor: "#16111c",
+
+    scale: {
+
+        mode: Phaser.Scale.RESIZE,
+
+        width: window.innerWidth*4,
+        height: window.innerHeight*4,
+
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    },
+
+    render: {
+
+        antialias: false,
+        pixelArt: false,
+        roundPixels: false
+    },
+
+    fps: {
+        target: 60,
+        forceSetTimeOut: true
+    },
+
+    scene: [
+        GeoScene
+    ]
+};
+
+new Phaser.Game(config);
+
+</script>
+
+</body>
+</html>

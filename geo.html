@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8"/>
+
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0"
+/>
+
+<title>ORPOS Geo</title>
+
+<link
+href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap"
+rel="stylesheet"
+/>
+
+<style>
+  /* =========================
+   NORD METRO UI
+========================= */
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+
+    font-family:"PT Sans",sans-serif;
+
+    background:#2e3440;
+
+    color:#eceff4;
+
+    min-height:100vh;
+
+    overflow-x:hidden;
+}
+
+/* =========================
+   HEADER
+========================= */
+
+.header{
+
+    padding:32px 20px 20px;
+}
+
+.logo{
+
+    font-size:34px;
+
+    font-weight:bold;
+
+    color:#eceff4;
+
+    letter-spacing:1px;
+}
+
+.subtitle{
+
+    margin-top:6px;
+
+    color:#d8dee9;
+
+    opacity:.75;
+}
+
+/* =========================
+   SEARCH
+========================= */
+
+.search-wrap{
+
+    padding:0 20px 20px;
+}
+
+.search{
+
+    width:100%;
+
+    background:#3b4252;
+
+    color:#eceff4;
+
+    border:none;
+
+    outline:none;
+
+    padding:18px;
+
+    font-size:18px;
+
+    border-radius:0;
+}
+
+.search::placeholder{
+    color:#d8dee9;
+    opacity:.55;
+}
+
+/* =========================
+   COUNTRY GRID
+========================= */
+
+.country-grid{
+
+    padding:0 20px 20px;
+
+    display:grid;
+
+    grid-template-columns:
+    repeat(auto-fit,minmax(280px,1fr));
+
+    gap:14px;
+}
+
+/* =========================
+   COUNTRY CARD
+========================= */
+
+.country-card{
+
+    background:#3b4252;
+
+    border:1px solid #4c566a;
+
+    padding:18px;
+
+    border-radius:0;
+
+    transition:.15s;
+}
+
+.country-card:hover{
+
+    background:#434c5e;
+}
+
+.country-top{
+
+    display:flex;
+
+    gap:14px;
+
+    align-items:center;
+
+    margin-bottom:16px;
+}
+
+.flag{
+
+    width:72px;
+
+    height:52px;
+
+    object-fit:cover;
+
+    border:1px solid #4c566a;
+}
+
+.country-name{
+
+    font-size:22px;
+
+    font-weight:bold;
+}
+
+.region{
+
+    color:#d8dee9;
+
+    opacity:.7;
+
+    margin-top:4px;
+}
+
+.info{
+
+    display:grid;
+
+    gap:10px;
+}
+
+.info-row{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    gap:10px;
+
+    padding-bottom:8px;
+
+    border-bottom:
+    1px solid rgba(255,255,255,.05);
+}
+
+.label{
+
+    color:#d8dee9;
+
+    opacity:.7;
+}
+
+.value{
+
+    text-align:right;
+}
+
+/* =========================
+   GAME CARDS
+========================= */
+
+.games{
+
+    padding:20px;
+
+    display:grid;
+
+    grid-template-columns:
+    repeat(auto-fit,minmax(260px,1fr));
+
+    gap:14px;
+}
+
+.game-card{
+
+    background:#3b4252;
+
+    border:1px solid #4c566a;
+
+    padding:24px;
+
+    text-decoration:none;
+
+    color:white;
+
+    border-radius:0;
+
+    transition:.15s;
+}
+
+.game-card:hover{
+
+    background:#434c5e;
+}
+
+.game-title{
+
+    font-size:26px;
+
+    font-weight:bold;
+}
+
+.game-desc{
+
+    margin-top:10px;
+
+    color:#d8dee9;
+
+    opacity:.8;
+
+    line-height:1.5;
+}
+
+/* =========================
+   EMPTY
+========================= */
+
+.empty{
+
+    padding:30px;
+
+    text-align:center;
+
+    background:#3b4252;
+
+    border:1px solid #4c566a;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+
+    <div class="logo">
+        ORPOS GEO
+    </div>
+
+    <div class="subtitle">
+        Country Explorer • Currency • Capital Quiz
+    </div>
+
+</div>
+
+<!-- SEARCH -->
+
+<div class="search-wrap">
+
+    <input
+    type="text"
+    class="search"
+    placeholder="Search countries..."
+    id="searchInput"
+    />
+
+</div>
+
+<!-- OUTPUT -->
+
+<div
+class="country-grid"
+id="countryGrid"
+></div>
+
+<!-- GAME CARDS -->
+
+<div class="games">
+
+    <a
+    href="/geocap.html"
+    class="game-card"
+    >
+
+        <div class="game-title">
+            GEO CAPITAL QUIZ
+        </div>
+
+        <div class="game-desc">
+            Tebak ibukota dari seluruh negara dunia.
+        </div>
+
+    </a>
+
+    <a
+    href="/geocur.html"
+    class="game-card"
+    >
+
+        <div class="game-title">
+            GEO CURRENCY QUIZ
+        </div>
+
+        <div class="game-desc">
+            Tebak mata uang dunia dari 195 negara anggota PBB.
+        </div>
+
+    </a>
+
+</div>
+
+<script>
+
+// =========================
+// DATA
+// =========================
+
+let countries = [];
+
+// =========================
+// FETCH
+// =========================
+
+// =========================
+// RANDOM COUNTRY
+// =========================
+
+function getRandomCountry(){
+
+    return countries[
+        Math.floor(
+            Math.random() *
+            countries.length
+        )
+    ];
+}
+
+// =========================
+// FETCH
+// =========================
+
+async function loadCountries(){
+
+    const res = await fetch(
+
+`https://restcountries.com/v3.1/all?fields=name,capital,currencies,region,population,cca2`
+
+    );
+
+    const data = await res.json();
+
+    countries = data.sort((a,b)=>
+        a.name.common.localeCompare(
+            b.name.common
+        )
+    );
+
+    // tampilkan 1 random dulu
+    renderCountries([
+        getRandomCountry()
+    ]);
+}
+// =========================
+// FUZZY SEARCH
+// =========================
+
+function fuzzyMatch(text, search){
+
+    text = text.toLowerCase();
+    search = search.toLowerCase();
+
+    let i = 0;
+
+    for(const char of text){
+
+        if(char === search[i]){
+            i++;
+        }
+    }
+
+    return i === search.length;
+}
+
+// =========================
+// RENDER
+// =========================
+
+function renderCountries(list){
+
+    const grid =
+        document.getElementById(
+            "countryGrid"
+        );
+
+    if(list.length === 0){
+
+        grid.innerHTML = `
+        <div class="empty">
+            No countries found
+        </div>
+        `;
+
+        return;
+    }
+
+    grid.innerHTML = list.map(country => {
+
+        const capital =
+            country.capital?.[0] || "-";
+
+        const currency =
+            country.currencies
+            ?
+            Object.values(
+                country.currencies
+            )[0]?.name
+            :
+            "-";
+
+        const population =
+            country.population
+            ?
+            country.population.toLocaleString()
+            :
+            "-";
+
+        return `
+
+        <div class="country-card">
+
+            <div class="country-top">
+
+                <img
+                class="flag"
+                src="https://flagcdn.com/w160/${country.cca2.toLowerCase()}.png"
+                />
+
+                <div>
+
+                    <div class="country-name">
+                        ${country.name.common}
+                    </div>
+
+                    <div class="region">
+                        ${country.region || "-"}
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="info">
+
+                <div class="info-row">
+
+                    <div class="label">
+                        Capital
+                    </div>
+
+                    <div class="value">
+                        ${capital}
+                    </div>
+
+                </div>
+
+                <div class="info-row">
+
+                    <div class="label">
+                        Currency
+                    </div>
+
+                    <div class="value">
+                        ${currency}
+                    </div>
+
+                </div>
+
+                <div class="info-row">
+
+                    <div class="label">
+                        Population
+                    </div>
+
+                    <div class="value">
+                        ${population}
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        `;
+    }).join("");
+}
+
+// =========================
+// SEARCH
+// =========================
+
+document
+.getElementById("searchInput")
+
+.addEventListener("input", e => {
+
+    const q = e.target.value.trim();
+
+    if(!q){
+
+        renderCountries(countries);
+
+        return;
+    }
+
+    const filtered =
+        countries.filter(c => {
+
+            return (
+                fuzzyMatch(
+                    c.name.common,
+                    q
+                )
+            );
+        });
+
+    renderCountries(filtered);
+});
+
+// =========================
+// START
+// =========================
+
+loadCountries();
+
+</script>
+
+</body>
+</html>

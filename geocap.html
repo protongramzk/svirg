@@ -204,7 +204,7 @@ this.isGameFinished = false;
         this.title = this.add.text(
             this.width / 2,
             50,
-            "GEO CAPITAL QUIZ",
+            "ORPOSGeo CapitalQuiz",
             {
                 fontFamily: "PT Sans",
                 fontSize: "34px",
@@ -745,14 +745,14 @@ const config = {
 
     type: Phaser.CANVAS,
 
-    backgroundColor: "#05090a",
+    backgroundColor: "#16111c",
 
     scale: {
 
         mode: Phaser.Scale.RESIZE,
 
-        width: window.innerWidth,
-        height: window.innerHeight,
+        width: window.innerWidth*4,
+        height: window.innerHeight*4,
 
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
@@ -761,7 +761,7 @@ const config = {
 
         antialias: false,
         pixelArt: false,
-        roundPixels: true
+        roundPixels: false
     },
 
     fps: {
